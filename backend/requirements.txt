@@ -1,0 +1,30 @@
+# FastAPI and ASGI Server
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+python-multipart>=0.0.9
+
+# Data validation and settings
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+
+# Database
+sqlalchemy>=2.0.28
+psycopg2-binary>=2.9.9
+alembic>=1.13.1
+
+# Security and Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.1
+
+# Machine Learning & Audio Processing (Inference)
+torch>=2.1.0
+transformers>=4.38.0
+soundfile>=0.12.1
+librosa>=0.10.1
+numpy>=1.24.0
+
+# Optional AI Features
+google-generativeai>=0.4.1
+requests>=2.31.0
+python-dotenv>=1.0.1
