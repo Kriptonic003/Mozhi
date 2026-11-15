@@ -52,19 +52,32 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         return batch
 
 
-def load_manifest(manifest_path: Path) -> Dataset:
+def load_manifest(manifest_path: Path, base_dir: Path = None) -> Dataset:
     """
-    Load a JSON manifest file containing audio_path, transcript, and speaker_id.
+    Load a JSON or JSONL manifest file containing audio_path, transcript, and speaker_id.
+    Resolves relative audio paths against base_dir.
     """
     if not manifest_path.exists():
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
 
-    with open(manifest_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    if base_dir is None:
+        base_dir = manifest_path.resolve().parents[2]
 
-    # Validate required keys
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+        if content.startswith("["):
+            data = json.loads(content)
+        else:
+            data = [json.loads(line) for line in content.splitlines() if line.strip()]
+
+    # Validate and resolve audio paths
     for entry in data:
         entry["normalized_text"] = normalize_manglish_text(entry.get("transcript", ""))
+        audio_p = Path(entry["audio_path"])
+        if not audio_p.is_absolute():
+            entry["audio_path"] = str((base_dir / audio_p).resolve())
+        else:
+            entry["audio_path"] = str(audio_p)
 
     dataset = Dataset.from_list(data)
     dataset = dataset.cast_column("audio_path", Audio(sampling_rate=16000))

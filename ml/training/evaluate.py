@@ -23,8 +23,20 @@ def evaluate_model(model_name_or_path: str, test_manifest: Path, device: str = "
     model = WhisperForConditionalGeneration.from_pretrained(model_name_or_path).to(device)
     model.eval()
 
+    base_dir = test_manifest.resolve().parents[2]
     with open(test_manifest, "r", encoding="utf-8") as f:
-        samples = json.load(f)
+        content = f.read().strip()
+        if content.startswith("["):
+            samples = json.loads(content)
+        else:
+            samples = [json.loads(line) for line in content.splitlines() if line.strip()]
+
+    for entry in samples:
+        audio_p = Path(entry["audio_path"])
+        if not audio_p.is_absolute():
+            entry["audio_path"] = str((base_dir / audio_p).resolve())
+        else:
+            entry["audio_path"] = str(audio_p)
 
     dataset = Dataset.from_list(samples)
     dataset = dataset.cast_column("audio_path", Audio(sampling_rate=16000))

@@ -1,12 +1,14 @@
-# Git Ignore for MOZHI
+# ============================================
+# MOZHI - Git Ignore
+# ============================================
 
-# Environment variables
+# ---- Environment Variables ----
 .env
 .env.local
 .env.*.local
 !.env.example
 
-# Python
+# ---- Python ----
 __pycache__/
 *.py[cod]
 *$py.class
@@ -27,8 +29,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.pyc
 
-# Virtual Environments
+# ---- Virtual Environments ----
 venv/
 .venv/
 env/
@@ -36,55 +39,71 @@ ENV/
 env.bak/
 venv.bak/
 
-# Database
+# ---- Database ----
 *.sqlite3
 *.db
-mozhi.db
 
-# Audio / Uploads
+# ---- Audio Uploads (user recordings) ----
 backend/uploads/*
 !backend/uploads/.gitkeep
 temp_audio/
-*.wav
-*.mp3
-*.m4a
-*.flac
-*.ogg
 
-# ML Model Weights, Checkpoints & Datasets
-models/*
+# ---- ML Model Weights & Checkpoints ----
+# Large binary files — do NOT push to git
+models/mozhi-whisper-small/
 !models/.gitkeep
 !models/README.md
-ml/dataset/raw/*
+*.pt
+*.safetensors
+*.bin
+!requirements*.txt
+
+# ---- ML Datasets (raw audio + generated manifests) ----
+ml/dataset/raw/mlenspeech/
 !ml/dataset/raw/.gitkeep
 ml/dataset/processed/*
 !ml/dataset/processed/.gitkeep
-ml/dataset/train/*
-!ml/dataset/train/.gitkeep
-ml/dataset/validation/*
-!ml/dataset/validation/.gitkeep
-ml/dataset/test/*
-!ml/dataset/test/.gitkeep
 ml/experiments/checkpoints/
-*.pt
-*.bin
-*.safetensors
+
+# Generated data files (reproducible via scripts)
+ml/dataset/mlenspeech_raw_manifest.jsonl
+ml/dataset/mlenspeech_to_romanize.csv
+
+# ---- ML Training Artifacts ----
 wandb/
 runs/
+tensorboard/
+*.ckpt
 
-# Node / Frontend
-frontend/node_modules/
+# ---- HuggingFace Cache ----
+.cache/
+huggingface/
+
+# ---- Jupyter Notebooks ----
+.ipynb_checkpoints/
+
+# ---- Node / Frontend ----
+node_modules/
 frontend/dist/
 frontend/dist-ssr/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.vite/
 
-# IDE & OS
+# ---- IDE & OS ----
 .idea/
 .vscode/
 *.swp
 *.swo
+*.bak
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# ---- Temp / Diagnostic Files ----
+backend/diagnose.py
+backend/test_dummy.wav
+*.tmp
+*.log

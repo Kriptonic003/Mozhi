@@ -32,6 +32,43 @@ def _strip_non_latin_hallucinations(text: str) -> str:
     return cleaned
 
 
+def _truncate_repetition_loops(text: str) -> str:
+    """
+    Detect and truncate repetition-loop hallucinations from Whisper output.
+
+    Whisper (especially with limited fine-tuning) can fall into loops where it
+    repeats a short substring endlessly, e.g.:
+      "njaan ippo samsaarikkunnu ... nmummummumumumumumumumum..."
+
+    Strategy:
+    1. Detect any substring of 2-6 chars that repeats 3+ times consecutively.
+    2. Truncate at the start of the first repetition loop.
+    3. Also detect full-word repetitions (same word 3+ times in a row).
+    """
+    if not text or len(text) < 10:
+        return text
+
+    # Pattern 1: Short substring (2-6 chars) repeating 3+ times consecutively
+    # This catches "mumumumum", "nanana", "ththth" etc.
+    match = re.search(r'(.{2,6}?)\1{2,}', text)
+    if match:
+        loop_start = match.start()
+        # Keep everything before the loop, plus one instance of the repeated unit
+        before_loop = text[:loop_start].rstrip()
+        if before_loop:
+            text = before_loop
+            print(f"[WhisperService] Truncated repetition loop at position {loop_start}")
+        # If loop is at the very start, keep one instance
+        else:
+            text = match.group(1)
+
+    # Pattern 2: Same word repeating 3+ times in a row
+    # This catches "hello hello hello hello" → "hello"
+    text = re.sub(r'\b(\w+)(\s+\1){2,}\b', r'\1', text)
+
+    return text.strip()
+
+
 class WhisperService:
     _instance = None
     _model = None
@@ -63,21 +100,32 @@ class WhisperService:
         if self._device == "cuda" and not torch.cuda.is_available():
             self._device = "cpu"
 
-        # Check if a local fine-tuned model exists in models/ directory
+        # Check if a local fine-tuned model exists in models/ directory (root or backend)
         model_path = settings.WHISPER_MODEL_NAME_OR_PATH
-        local_ft_path = settings.BASE_DIR / "models" / "mozhi-whisper-small"
-        if local_ft_path.exists() and any(local_ft_path.iterdir()):
+        local_ft_candidates = [
+            settings.BASE_DIR.parent / "models" / "mozhi-whisper-small",
+            settings.BASE_DIR / "models" / "mozhi-whisper-small",
+        ]
+        local_ft_path = None
+        for candidate in local_ft_candidates:
+            if candidate.exists() and any(candidate.iterdir()):
+                local_ft_path = candidate
+                break
+
+        local_files_only = False
+        if local_ft_path is not None:
             model_path = str(local_ft_path)
             self._is_fine_tuned = True
+            local_files_only = True
             print(f"[WhisperService] Loading FINE-TUNED Manglish model from: {model_path}")
         else:
             self._is_fine_tuned = False
             print(f"[WhisperService] BASELINE model ({model_path}) — not fine-tuned on Manglish yet.")
             print("[WhisperService] Output will be approximate phonetic Latin, not true Romanized Manglish.")
 
-        self._processor = WhisperProcessor.from_pretrained(model_path, local_files_only=False)
+        self._processor = WhisperProcessor.from_pretrained(model_path, local_files_only=local_files_only)
         self._model = WhisperForConditionalGeneration.from_pretrained(
-            model_path, local_files_only=False
+            model_path, local_files_only=local_files_only
         ).to(self._device)
         self._model.eval()
         print(f"[WhisperService] Model loaded on {self._device}.")
@@ -145,12 +193,17 @@ class WhisperService:
                 inputs.input_features,
                 forced_decoder_ids=forced_decoder_ids,
                 max_new_tokens=225,
+                repetition_penalty=1.3,
+                no_repeat_ngram_size=4,
             )
 
         # --- Decode and clean ---
         transcription = self._processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
         transcription = transcription.strip()
         print(f"[WhisperService] Raw output: {repr(transcription[:200])}")
+
+        # Post-process: truncate any repetition-loop hallucinations
+        transcription = _truncate_repetition_loops(transcription)
 
         # For baseline model: attempt to strip non-Latin hallucinations,
         # but fall back to raw output if stripping produces an empty string.
